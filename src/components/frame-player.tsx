@@ -97,12 +97,6 @@ export function FramePlayer({ initialData }: FramePlayerProps) {
             {field.name} <span className="font-mono text-xs opacity-70">{field.frameCount}</span>
           </button>
         ))}
-        <a
-          href={`/api/download?run=${encodeURIComponent(initialData.run)}&asset=times.dat`}
-          className="ml-auto rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-4 py-2 text-sm text-[var(--color-accent)] hover:border-[var(--color-accent)]"
-        >
-          Download times.dat
-        </a>
       </div>
 
       <div className="rounded-[2rem] border border-[var(--color-line)] bg-[var(--color-panel-strong)] p-4 shadow-2xl shadow-black/20">

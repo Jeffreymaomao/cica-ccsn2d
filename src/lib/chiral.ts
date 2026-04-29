@@ -9,7 +9,6 @@ export type RunSummary = {
   name: string;
   modifiedAt: string;
   fieldCount: number;
-  publicFrameCount: number;
 };
 
 export type PublicFieldSummary = {
@@ -107,13 +106,11 @@ export async function listRuns(): Promise<RunSummary[]> {
         const timeCount = await getTimeCount(entry.name).catch(() => 0);
         const fields = await listFields(entry.name, timeCount).catch(() => []);
         const directoryStats = await fs.stat(directoryPath);
-        const publicFrameCount = fields.reduce((sum, field) => sum + field.frameCount, 0);
 
         return {
           name: entry.name,
           modifiedAt: directoryStats.mtime.toISOString(),
           fieldCount: fields.length,
-          publicFrameCount,
         } satisfies RunSummary;
       }),
   );
@@ -146,6 +143,7 @@ export async function listFields(run: string, visibleLimit?: number): Promise<Pu
         ).length;
         const frameCount =
           typeof visibleLimit === "number" ? Math.min(rawFrameCount, visibleLimit) : rawFrameCount;
+        // console.log(rawFrameCount, framesCount)
 
         return {
           name: entry.name,
@@ -342,4 +340,24 @@ export function formatDate(isoString: string) {
 
 export function formatSeconds(value: number | null) {
   return value === null ? "n/a" : `${value.toFixed(6)} s`;
+}
+
+export function formatRunTime(time: string) {
+  const match = time.match(/^(\d{4})-(\d{2})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return time;
+  }
+
+  const [, year, month, date, hour] = match;
+  return `${year}/${month}/${date} ${hour}:00`;
+}
+
+
+export function parseNameToTag(name: string): RunMeta {
+  const [time = name, init = "", hash = "", prefix = ""] = name.split("_");
+  return { time, init, hash, prefix };
+}
+
+export function formatRunTag(meta: RunMeta) {
+  return `${meta.init}_${meta.prefix}`;
 }

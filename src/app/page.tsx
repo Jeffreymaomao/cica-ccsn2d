@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ensureChiralRoot, formatDate, listRuns } from "@/lib/chiral";
+import { ensureChiralRoot, formatDate, formatRunTime, listRuns, parseNameToTag, formatRunTag } from "@/lib/chiral";
 
 type RunMeta = {
   time: string;
@@ -8,25 +8,6 @@ type RunMeta = {
   hash: string;
   prefix: string;
 };
-
-function parseNameToTag(name: string): RunMeta {
-  const [time = name, init = "", hash = "", prefix = ""] = name.split("_");
-  return { time, init, hash, prefix };
-}
-
-function formatRunTag(meta: RunMeta) {
-  return `${meta.init}_${meta.prefix}`;
-}
-
-function formatRunTime(time: string) {
-  const match = time.match(/^(\d{4})-(\d{2})-(\d{2})-(\d{2})$/);
-  if (!match) {
-    return time;
-  }
-
-  const [, year, month, date, hour] = match;
-  return `${year}/${month}/${date} ${hour}:00`;
-}
 
 export default async function Home() {
   await ensureChiralRoot();
@@ -76,9 +57,6 @@ export default async function Home() {
                 <div className="flex gap-3 text-sm">
                   <span className="rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-3 py-1 font-mono text-[var(--color-accent)]">
                     {run.fieldCount} fields
-                  </span>
-                  <span className="rounded-full border border-[var(--color-line)] bg-black/20 px-3 py-1 font-mono text-[var(--color-paper)]">
-                    {run.publicFrameCount} public frames
                   </span>
                 </div>
               </div>
