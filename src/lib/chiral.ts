@@ -9,7 +9,13 @@ export type RunSummary = {
   name: string;
   modifiedAt: string;
   fieldCount: number;
-  publicFrameCount: number;
+};
+
+export type RunMeta = {
+  time: string;
+  init: string;
+  hash: string;
+  prefix: string;
 };
 
 export type PublicFieldSummary = {
@@ -107,13 +113,11 @@ export async function listRuns(): Promise<RunSummary[]> {
         const timeCount = await getTimeCount(entry.name).catch(() => 0);
         const fields = await listFields(entry.name, timeCount).catch(() => []);
         const directoryStats = await fs.stat(directoryPath);
-        const publicFrameCount = fields.reduce((sum, field) => sum + field.frameCount, 0);
 
         return {
           name: entry.name,
           modifiedAt: directoryStats.mtime.toISOString(),
           fieldCount: fields.length,
-          publicFrameCount,
         } satisfies RunSummary;
       }),
   );
@@ -326,12 +330,40 @@ export async function readTimesFile(run: string) {
 }
 
 export function formatDate(isoString: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(isoString));
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Taipei",
+  }).formatToParts(new Date(isoString));
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}/${values.month}/${values.day} ${values.hour}:${values.minute}`;
 }
 
 export function formatSeconds(value: number | null) {
   return value === null ? "n/a" : `${value.toFixed(6)} s`;
+}
+
+export function formatRunTime(time: string) {
+  const match = time.match(/^(\d{4})-(\d{2})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return time;
+  }
+
+  const [, year, month, date, hour] = match;
+  return `${year}/${month}/${date} ${hour}:00`;
+}
+
+
+export function parseNameToTag(name: string): RunMeta {
+  const [time = name, init = "", hash = "", prefix = ""] = name.split("_");
+  return { time, init, hash, prefix };
+}
+
+export function formatRunTag(meta: RunMeta) {
+  return `${meta.init}_${meta.prefix}`;
 }
