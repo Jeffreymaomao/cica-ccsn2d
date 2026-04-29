@@ -1,13 +1,6 @@
 import Link from "next/link";
 
-import { ensureChiralRoot, formatDate, formatRunTime, listRuns, parseNameToTag, formatRunTag } from "@/lib/chiral";
-
-type RunMeta = {
-  time: string;
-  init: string;
-  hash: string;
-  prefix: string;
-};
+import { ensureChiralRoot, formatDate, formatRunTag, formatRunTime, listRuns, parseNameToTag } from "@/lib/chiral";
 
 export default async function Home() {
   await ensureChiralRoot();

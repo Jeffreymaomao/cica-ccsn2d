@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { FramePlayer, type PlayerPayload } from "@/components/frame-player";
-import { formatDate, getPlayerData, isPublicRun, listRuns, parseNameToTag, formatRunTag } from "@/lib/chiral";
-
+import { formatRunTag, formatRunTime, getPlayerData, isPublicRun, parseNameToTag } from "@/lib/chiral";
 
 type RunPageProps = {
   params: Promise<{ run: string }>;
@@ -18,7 +16,6 @@ export default async function RunPage({ params, searchParams }: RunPageProps) {
     notFound();
   }
 
-  const runs = await listRuns();
   let playerData;
   try {
     playerData = await getPlayerData(run, field);
@@ -42,26 +39,16 @@ export default async function RunPage({ params, searchParams }: RunPageProps) {
       imageUrl: `/api/frame?run=${encodeURIComponent(run)}&field=${encodeURIComponent(playerData.selectedField)}&index=${frame.index}`,
     })),
   };
+  const meta = parseNameToTag(run);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-6 py-8 sm:px-10">
-      <div className="rounded-[2rem] border border-[var(--color-line)] bg-[var(--color-panel)] p-6 backdrop-blur">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <Link href="/" className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--color-link)]">
-              Back to runs
-            </Link>
-            <h1 className="mt-3 text-3xl font-semibold text-white">
-              {formatRunTag(parseNameToTag(run))}
-            </h1>
-            <p className="mt-2 font-mono text-sm text-[var(--color-muted)]">
-              {run}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <FramePlayer initialData={initialData} />
+    <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-4 sm:px-6">
+      <FramePlayer
+        initialData={initialData}
+        runName={run}
+        runTitle={formatRunTag(meta)}
+        startTime={formatRunTime(meta.time)}
+      />
     </main>
   );
 }
