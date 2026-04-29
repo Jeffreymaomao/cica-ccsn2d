@@ -11,6 +11,13 @@ export type RunSummary = {
   fieldCount: number;
 };
 
+export type RunMeta = {
+  time: string;
+  init: string;
+  hash: string;
+  prefix: string;
+};
+
 export type PublicFieldSummary = {
   name: string;
   frameCount: number;
@@ -143,7 +150,6 @@ export async function listFields(run: string, visibleLimit?: number): Promise<Pu
         ).length;
         const frameCount =
           typeof visibleLimit === "number" ? Math.min(rawFrameCount, visibleLimit) : rawFrameCount;
-        // console.log(rawFrameCount, framesCount)
 
         return {
           name: entry.name,

@@ -45,12 +45,18 @@ type SwipeStart = {
   y: number;
 };
 
+type SlideDirection = "previous" | "next" | null;
+
 export function FramePlayer({ initialData, runName, runTitle, startTime }: FramePlayerProps) {
   const [playerData, setPlayerData] = useState(initialData);
   const [selectedField, setSelectedField] = useState(initialData.selectedField);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoadingField, setIsLoadingField] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<SlideDirection>(null);
+  const [slideWidth, setSlideWidth] = useState(0);
+  const activeFrameRef = useRef<HTMLButtonElement | null>(null);
   const swipeStart = useRef<SwipeStart | null>(null);
+  const slideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +77,11 @@ export function FramePlayer({ initialData, runName, runTitle, startTime }: Frame
 
         const nextData = (await response.json()) as PlayerPayload;
         if (!cancelled) {
+          if (slideTimeoutRef.current) {
+            clearTimeout(slideTimeoutRef.current);
+            slideTimeoutRef.current = null;
+          }
+          setSlideDirection(null);
           setPlayerData(nextData);
           setSelectedIndex(0);
         }
@@ -87,20 +98,75 @@ export function FramePlayer({ initialData, runName, runTitle, startTime }: Frame
     };
   }, [initialData.run, playerData.selectedField, selectedField]);
 
+  useEffect(() => {
+    return () => {
+      if (slideTimeoutRef.current) {
+        clearTimeout(slideTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const frames = playerData.frames;
   const activeFrame = frames[selectedIndex] ?? null;
-  const previousFrame = frames[selectedIndex - 1] ?? null;
-  const nextFrame = frames[selectedIndex + 1] ?? null;
   const maxIndex = Math.max(0, frames.length - 1);
   const canGoPrevious = selectedIndex > 0 && frames.length > 0;
   const canGoNext = selectedIndex < maxIndex && frames.length > 0;
+  const visibleStartIndex =
+    frames.length <= 3 ? 0 : Math.min(Math.max(selectedIndex - 1, 0), frames.length - 3);
+  const visibleFrames = frames.slice(visibleStartIndex, visibleStartIndex + 3);
+  const activePosition = Math.max(0, selectedIndex - visibleStartIndex);
+
+  useEffect(() => {
+    const element = activeFrameRef.current;
+    if (!element) {
+      return;
+    }
+
+    function updateSlideWidth() {
+      setSlideWidth(element!.getBoundingClientRect().width);
+    }
+
+    updateSlideWidth();
+    const resizeObserver = new ResizeObserver(updateSlideWidth);
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [activeFrame?.imageUrl, playerData.selectedField]);
+
+  function finishSlide(nextIndex: number) {
+    slideTimeoutRef.current = setTimeout(() => {
+      setSelectedIndex(nextIndex);
+      setSlideDirection(null);
+      slideTimeoutRef.current = null;
+    }, 260);
+  }
 
   function goToPrevious() {
-    setSelectedIndex((current) => Math.max(0, current - 1));
+    if (!canGoPrevious || slideDirection) {
+      return;
+    }
+
+    if (slideTimeoutRef.current) {
+      clearTimeout(slideTimeoutRef.current);
+    }
+
+    setSlideDirection("previous");
+    finishSlide(selectedIndex - 1);
   }
 
   function goToNext() {
-    setSelectedIndex((current) => Math.min(maxIndex, current + 1));
+    if (!canGoNext || slideDirection) {
+      return;
+    }
+
+    if (slideTimeoutRef.current) {
+      clearTimeout(slideTimeoutRef.current);
+    }
+
+    setSlideDirection("next");
+    finishSlide(selectedIndex + 1);
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -135,40 +201,18 @@ export function FramePlayer({ initialData, runName, runTitle, startTime }: Frame
     goToNext();
   }
 
-  function renderFrame(
-    frame: PlayerFrame | null,
-    label: string,
-    priority = false,
-    imageClassName = "h-auto max-h-full w-auto max-w-full object-contain",
-  ) {
-    if (!frame) {
-      return (
-        <div className="flex h-full min-h-0 items-center justify-center rounded-[1rem] border border-dashed border-[var(--color-line)] bg-black/20 px-6 text-center font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-          {label}
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1rem] border border-[var(--color-line)] bg-black/30">
-        <Image
-          key={frame.imageUrl}
-          src={frame.imageUrl}
-          alt={`${playerData.selectedField} frame ${frame.index}`}
-          width={1600}
-          height={1000}
-          priority={priority}
-          unoptimized
-          className={imageClassName}
-        />
-      </div>
-    );
-  }
+  const baseSlideOffset = -activePosition * slideWidth;
+  const slideOffset =
+    slideDirection === "next"
+      ? baseSlideOffset - slideWidth
+      : slideDirection === "previous"
+        ? baseSlideOffset + slideWidth
+        : baseSlideOffset;
 
   return (
     <div className="flex flex-col gap-5">
       <section className="flex h-[calc(100svh-2rem)] min-h-[36rem] flex-col gap-3">
-        <header className="sticky top-0 z-20 rounded-[1.25rem] border border-[var(--color-line)] bg-[var(--color-panel)] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur">
+        <header className="sticky top-0 z-20 border-[var(--color-line)] bg-[var(--color-panel)] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--color-link)]">
@@ -206,77 +250,111 @@ export function FramePlayer({ initialData, runName, runTitle, startTime }: Frame
         </header>
 
         <div
-          className="grid min-h-0 flex-1 touch-pan-y gap-2 overflow-hidden rounded-[1.5rem] border border-[var(--color-line)] bg-[var(--color-panel-strong)] p-2 shadow-2xl shadow-black/20 lg:grid-cols-[minmax(160px,0.42fr)_minmax(0,1fr)_minmax(160px,0.42fr)] lg:grid-rows-[minmax(0,1fr)]"
+          className="relative flex min-h-0 flex-1 touch-pan-y overflow-hidden rounded-[1.5rem] border border-[var(--color-line)] bg-[var(--color-panel-strong)] shadow-2xl shadow-black/20"
           onPointerDown={handlePointerDown}
           onPointerCancel={() => {
             swipeStart.current = null;
           }}
           onPointerUp={handlePointerUp}
         >
-          <button
-            type="button"
-            onClick={goToPrevious}
-            disabled={!canGoPrevious}
-            className="hidden h-full min-h-0 cursor-pointer overflow-hidden rounded-[1rem] text-left transition hover:border-[var(--color-link)] disabled:cursor-default disabled:opacity-45 lg:block"
-            aria-label="Previous frame"
+          <div
+            className="flex h-full min-h-0 shrink-0 items-stretch will-change-transform"
+            style={{
+              transform: `translate3d(${slideOffset}px, 0, 0)`,
+              transition: slideDirection ? "transform 260ms ease-out" : "none",
+            }}
           >
-            {renderFrame(
-              previousFrame,
-              "No previous frame",
-              false,
-              "h-full max-h-full w-auto max-w-none object-contain",
-            )}
-          </button>
+            {visibleFrames.length > 0 ? (
+              visibleFrames.map((frame) => {
+                const isActive = frame.index === selectedIndex;
 
-          <div className="relative min-h-[calc(100svh-12rem)] overflow-hidden lg:h-full lg:min-h-0">
-            {renderFrame(activeFrame, "No public frames available", true)}
-            <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-end justify-between gap-3">
-              <div className="min-w-0 rounded-full border border-[var(--color-line)] bg-black/45 px-3 py-1 font-mono text-xs text-[var(--color-paper)] backdrop-blur">
-                {frames.length === 0 ? "0 / 0" : `${selectedIndex + 1} / ${frames.length}`}
+                return (
+                  <button
+                    key={frame.imageUrl}
+                    ref={isActive ? activeFrameRef : null}
+                    type="button"
+                    onClick={() => {
+                      if (frame.index < selectedIndex) {
+                        goToPrevious();
+                        return;
+                      }
+
+                      if (frame.index > selectedIndex) {
+                        goToNext();
+                      }
+                    }}
+                    className="relative h-full min-h-[calc(100svh-12rem)] shrink-0 cursor-pointer overflow-hidden text-left lg:min-h-0"
+                    aria-label={isActive ? "Current frame" : frame.index < selectedIndex ? "Previous frame" : "Next frame"}
+                  >
+                    <div className="flex h-full min-h-0 shrink-0 items-center justify-center overflow-hidden bg-black/30">
+                      <Image
+                        key={frame.imageUrl}
+                        src={frame.imageUrl}
+                        alt={`${playerData.selectedField} frame ${frame.index}`}
+                        width={1600}
+                        height={1000}
+                        priority={isActive}
+                        unoptimized
+                        className="h-full max-h-full w-auto max-w-none object-contain"
+                      />
+                    </div>
+                    {isActive ? (
+                      <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-end justify-between">
+                        <div className="hidden max-w-[80%] truncate rounded-full bg-black/45 px-3 py-1 font-mono text-xs text-[var(--color-muted)] backdrop-blur sm:block">
+                          {frame.fileName}
+                        </div>
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="relative h-full min-h-[calc(100svh-12rem)] shrink-0 overflow-hidden lg:min-h-0">
+                <div className="flex h-full min-h-0 items-center justify-center bg-black/20 px-6 text-center font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                  No public frames available
+                </div>
               </div>
-              <div className="hidden max-w-[60%] truncate rounded-full border border-[var(--color-line)] bg-black/45 px-3 py-1 font-mono text-xs text-[var(--color-muted)] backdrop-blur sm:block">
-                {activeFrame ? activeFrame.fileName : "No frame selected"}
-              </div>
-            </div>
+            )}
           </div>
 
           <button
             type="button"
             onClick={goToNext}
             disabled={!canGoNext}
-            className="hidden h-full min-h-0 cursor-pointer overflow-hidden rounded-[1rem] text-left transition hover:border-[var(--color-link)] disabled:cursor-default disabled:opacity-45 lg:block"
+            className="absolute inset-y-0 right-0 w-1/4 lg:hidden"
             aria-label="Next frame"
-          >
-            {renderFrame(
-              nextFrame,
-              "No next frame",
-              false,
-              "h-full max-h-full w-auto max-w-none object-contain",
-            )}
-          </button>
-
-          <div className="flex items-center justify-between gap-2 lg:hidden">
-            <button
-              type="button"
-              onClick={goToPrevious}
-              disabled={!canGoPrevious}
-              className="rounded-full border border-[var(--color-line)] px-3 py-1.5 text-xs text-[var(--color-paper)] disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={goToNext}
-              disabled={!canGoNext}
-              className="rounded-full border border-[var(--color-line)] px-3 py-1.5 text-xs text-[var(--color-paper)] disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+          />
+          <button
+            type="button"
+            onClick={goToPrevious}
+            disabled={!canGoPrevious}
+            className="absolute inset-y-0 left-0 w-1/4 lg:hidden"
+            aria-label="Previous frame"
+          />
         </div>
       </section>
 
       <div className="rounded-[1.5rem] border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
+        <div className="mt-1 mb-4">
+          <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <span>Timeline</span>
+            <span>{activeFrame ? formatSeconds(activeFrame.timeSeconds) : "n/a"}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={maxIndex}
+            step={1}
+            value={Math.min(selectedIndex, maxIndex)}
+            disabled={frames.length === 0}
+            onChange={(event) => setSelectedIndex(Number.parseInt(event.target.value, 10))}
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-sky-300"
+          />
+          <div className="mt-2 flex justify-between font-mono text-xs text-[var(--color-muted)]">
+            <span>0</span>
+            <span>{maxIndex}</span>
+          </div>
+        </div>
         <div className="grid gap-3 md:grid-cols-4">
           <div className="rounded-xl border border-[var(--color-line)] bg-black/15 p-3">
             <div className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Frame</div>
@@ -301,27 +379,6 @@ export function FramePlayer({ initialData, runName, runTitle, startTime }: Frame
             <div className="mt-1 text-sm text-white">
               {playerData.frameCount} frames from {playerData.totalImages} images / {playerData.totalTimes} times
             </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-            <span>Timeline</span>
-            <span>{activeFrame ? formatSeconds(activeFrame.timeSeconds) : "n/a"}</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={maxIndex}
-            step={1}
-            value={Math.min(selectedIndex, maxIndex)}
-            disabled={frames.length === 0}
-            onChange={(event) => setSelectedIndex(Number.parseInt(event.target.value, 10))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-sky-300"
-          />
-          <div className="mt-2 flex justify-between font-mono text-xs text-[var(--color-muted)]">
-            <span>0</span>
-            <span>{maxIndex}</span>
           </div>
         </div>
       </div>
