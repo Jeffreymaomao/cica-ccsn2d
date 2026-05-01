@@ -8,7 +8,7 @@ const FRAMES_DIR = "frames";
 export type RunSummary = {
   name: string;
   modifiedAt: string;
-  fieldCount: number;
+  fields: PublicFieldSummary[];
 };
 
 export type RunMeta = {
@@ -117,7 +117,7 @@ export async function listRuns(): Promise<RunSummary[]> {
         return {
           name: entry.name,
           modifiedAt: directoryStats.mtime.toISOString(),
-          fieldCount: fields.length,
+          fields,
         } satisfies RunSummary;
       }),
   );

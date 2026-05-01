@@ -47,10 +47,15 @@ export default async function Home() {
                     Update {formatDate(run.modifiedAt)}
                   </p>
                 </div>
-                <div className="flex gap-3 text-sm">
-                  <span className="rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-3 py-1 font-mono text-[var(--color-accent)]">
-                    {run.fieldCount} fields
-                  </span>
+                <div className="flex flex-wrap gap-2 text-sm lg:justify-end">
+                  {run.fields.map((field) => (
+                    <span
+                      key={field.name}
+                      className="rounded-full border border-[var(--color-line)] bg-[var(--color-accent-soft)] px-3 py-1 font-mono text-[var(--color-accent)]"
+                    >
+                      {field.name}
+                    </span>
+                  ))}
                 </div>
               </div>
             </Link>
